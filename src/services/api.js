@@ -9,11 +9,7 @@ import { Platform } from 'react-native';
  * For iOS simulator, localhost works. For Android emulator, use 10.0.2.2
  */
 const getBaseURL = () => {
-    // TODO: Replace with your actual backend URL or local IP for device testing
-    if (Platform.OS === 'android') {
-        return 'http://10.0.2.2:8000'; // Android emulator -> host machine
-    }
-    return 'http://localhost:8000'; // iOS simulator
+    return 'http://10.10.80.150:8000'; // SIT backend server
 };
 
 const api = axios.create({
