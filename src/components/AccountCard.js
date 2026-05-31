@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, fontSize, fontWeight, formatNumber } from '../theme';
 
-const AccountCard = ({ account, onPress }) => {
+const AccountCard = ({ account, onPress, onLongPress }) => {
     const balance = account.current_balance || 0;
     const isNegative = balance < 0;
 
@@ -11,6 +11,7 @@ const AccountCard = ({ account, onPress }) => {
         <TouchableOpacity
             style={styles.card}
             onPress={() => onPress?.(account)}
+            onLongPress={() => onLongPress?.(account)}
             activeOpacity={0.7}
         >
             {/* Left accent bar */}

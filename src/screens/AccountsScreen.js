@@ -7,17 +7,37 @@ import {
     RefreshControl,
     ActivityIndicator,
     TouchableOpacity,
+    TextInput,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, fontSize, fontWeight, formatNumber } from '../theme';
-import { getAccounts, getCreditCards } from '../services/api';
+import { getAccounts, getCreditCards, createAccount, updateAccount, deleteAccount, createCreditCard, updateCreditCard, deleteCreditCard } from '../services/api';
 import AccountCard from '../components/AccountCard';
+import FloatingActionButton from '../components/FloatingActionButton';
+import FormModal, { FormField, SegmentedControl, formInputStyle, showCardActions } from '../components/FormModal';
 
 const AccountsScreen = ({ navigation }) => {
     const [accounts, setAccounts] = useState([]);
     const [creditCards, setCreditCards] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Account form state
+    const [showAccountModal, setShowAccountModal] = useState(false);
+    const [editingAccount, setEditingAccount] = useState(null);
+    const [accountForm, setAccountForm] = useState({
+        name: '', account_type: 'Checking', last_4_digits: '', current_balance: '',
+        bank_name: '', credit_limit: '', is_income: false, notes: '',
+    });
+
+    // Credit card form state
+    const [showCCModal, setShowCCModal] = useState(false);
+    const [editingCC, setEditingCC] = useState(null);
+    const [ccForm, setCCForm] = useState({
+        name: '', bank_name: '', last_4_digits: '', credit_limit: '',
+        current_balance: '', statement_day: '', due_day: '', apr: '',
+    });
 
     const fetchData = useCallback(async () => {
         try {
@@ -56,9 +76,132 @@ const AccountsScreen = ({ navigation }) => {
         return creditCards.reduce((sum, cc) => sum + (cc.credit_limit || 0), 0);
     }, [creditCards]);
 
+    // --- Account CRUD ---
+    const openAccountModal = (acc = null) => {
+        if (acc) {
+            setEditingAccount(acc);
+            setAccountForm({
+                name: acc.name || '', account_type: acc.account_type || 'Checking',
+                last_4_digits: acc.last_4_digits || '', current_balance: String(acc.current_balance || ''),
+                bank_name: acc.bank_name || '', credit_limit: String(acc.credit_limit || ''),
+                is_income: acc.is_income || false, notes: acc.notes || '',
+            });
+        } else {
+            setEditingAccount(null);
+            setAccountForm({ name: '', account_type: 'Checking', last_4_digits: '', current_balance: '', bank_name: '', credit_limit: '', is_income: false, notes: '' });
+        }
+        setShowAccountModal(true);
+    };
+
+    const handleSaveAccount = async () => {
+        if (!accountForm.name) return Alert.alert('Error', 'Account name is required');
+        try {
+            const payload = {
+                ...accountForm,
+                current_balance: parseFloat(accountForm.current_balance) || 0,
+                credit_limit: accountForm.account_type === 'Credit Card' ? (parseFloat(accountForm.credit_limit) || null) : null,
+            };
+            if (editingAccount) {
+                await updateAccount(editingAccount.id, payload);
+            } else {
+                await createAccount(payload);
+            }
+            setShowAccountModal(false);
+            fetchData();
+        } catch (err) {
+            console.error('Save account error:', err);
+            Alert.alert('Error', 'Could not save account');
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!editingAccount) return;
+        try {
+            await deleteAccount(editingAccount.id);
+            setShowAccountModal(false);
+            fetchData();
+        } catch (err) {
+            Alert.alert('Error', 'Could not delete account');
+        }
+    };
+
+    // --- Credit Card CRUD ---
+    const openCCModal = (cc = null) => {
+        if (cc) {
+            setEditingCC(cc);
+            setCCForm({
+                name: cc.name || '', bank_name: cc.bank_name || '',
+                last_4_digits: cc.last_4_digits || '', credit_limit: String(cc.credit_limit || ''),
+                current_balance: String(cc.current_balance || ''), statement_day: String(cc.statement_day || ''),
+                due_day: String(cc.due_day || ''), apr: String(cc.apr || ''),
+            });
+        } else {
+            setEditingCC(null);
+            setCCForm({ name: '', bank_name: '', last_4_digits: '', credit_limit: '', current_balance: '', statement_day: '', due_day: '', apr: '' });
+        }
+        setShowCCModal(true);
+    };
+
+    const handleSaveCC = async () => {
+        if (!ccForm.name) return Alert.alert('Error', 'Card name is required');
+        try {
+            const payload = {
+                ...ccForm,
+                credit_limit: parseFloat(ccForm.credit_limit) || 0,
+                current_balance: parseFloat(ccForm.current_balance) || 0,
+                statement_day: parseInt(ccForm.statement_day) || null,
+                due_day: parseInt(ccForm.due_day) || null,
+                apr: parseFloat(ccForm.apr) || null,
+            };
+            if (editingCC) {
+                await updateCreditCard(editingCC.id, payload);
+            } else {
+                await createCreditCard(payload);
+            }
+            setShowCCModal(false);
+            fetchData();
+        } catch (err) {
+            Alert.alert('Error', 'Could not save credit card');
+        }
+    };
+
+    const handleDeleteCC = async () => {
+        if (!editingCC) return;
+        try {
+            await deleteCreditCard(editingCC.id);
+            setShowCCModal(false);
+            fetchData();
+        } catch (err) {
+            Alert.alert('Error', 'Could not delete credit card');
+        }
+    };
+
     const handleAccountPress = (account) => {
-        // Navigate to transactions filtered by this account
         navigation.navigate('Transactions', { accountId: account.id });
+    };
+
+    const handleAccountLongPress = (account) => {
+        showCardActions(account.name, {
+            onEdit: () => openAccountModal(account),
+            onDelete: async () => {
+                try { await deleteAccount(account.id); fetchData(); }
+                catch { Alert.alert('Error', 'Could not delete account'); }
+            },
+        });
+    };
+
+    const handleCreditCardPress = (cc) => {
+        navigation.navigate('CreditCardDetail', { cardId: cc.id, card: cc });
+    };
+
+    const handleCreditCardLongPress = (cc) => {
+        showCardActions(cc.name || 'Credit Card', {
+            onEdit: () => openCCModal(cc),
+            onDelete: async () => {
+                try { await deleteCreditCard(cc.id); fetchData(); }
+                catch { Alert.alert('Error', 'Could not delete card'); }
+            },
+        });
     };
 
     if (loading) {
@@ -70,8 +213,9 @@ const AccountsScreen = ({ navigation }) => {
     }
 
     return (
+        <View style={styles.container}>
         <ScrollView
-            style={styles.container}
+            style={{ flex: 1 }}
             contentContainerStyle={styles.contentContainer}
             refreshControl={
                 <RefreshControl
@@ -111,7 +255,12 @@ const AccountsScreen = ({ navigation }) => {
             <Text style={styles.sectionLabel}>Bank Accounts</Text>
             {accounts.length > 0 ? (
                 accounts.map((acc) => (
-                    <AccountCard key={acc.id} account={acc} onPress={handleAccountPress} />
+                    <AccountCard
+                        key={acc.id}
+                        account={acc}
+                        onPress={handleAccountPress}
+                        onLongPress={handleAccountLongPress}
+                    />
                 ))
             ) : (
                 <View style={styles.emptyState}>
@@ -131,6 +280,8 @@ const AccountsScreen = ({ navigation }) => {
                             key={cc.id}
                             style={styles.creditCard}
                             activeOpacity={0.7}
+                            onPress={() => handleCreditCardPress(cc)}
+                            onLongPress={() => handleCreditCardLongPress(cc)}
                         >
                             <View style={[styles.ccAccent, { backgroundColor: colors.warning }]} />
                             <View style={styles.ccContent}>
@@ -200,8 +351,192 @@ const AccountsScreen = ({ navigation }) => {
                 </>
             )}
 
-            <View style={{ height: spacing.xxxl }} />
+            <View style={{ height: spacing.xxxl * 3 }} />
         </ScrollView>
+
+        {/* FAB */}
+        <FloatingActionButton
+            onPress={() => {
+                Alert.alert('Add New', 'What would you like to add?', [
+                    { text: 'Bank Account', onPress: () => openAccountModal() },
+                    { text: 'Credit Card', onPress: () => openCCModal() },
+                    { text: 'Cancel', style: 'cancel' },
+                ]);
+            }}
+        />
+
+        {/* Account Modal */}
+        <FormModal
+            visible={showAccountModal}
+            onClose={() => setShowAccountModal(false)}
+            title={editingAccount ? 'Edit Account' : 'New Account'}
+            onSubmit={handleSaveAccount}
+            submitLabel={editingAccount ? 'Save' : 'Create'}
+            onDelete={editingAccount ? handleDeleteAccount : undefined}
+        >
+            <FormField label="Account Name" required>
+                <TextInput
+                    style={formInputStyle}
+                    value={accountForm.name}
+                    onChangeText={(t) => setAccountForm((p) => ({ ...p, name: t }))}
+                    placeholder="e.g. Main Checking"
+                    placeholderTextColor={colors.textDim}
+                />
+            </FormField>
+
+            <FormField label="Account Type">
+                <SegmentedControl
+                    options={[
+                        { value: 'Checking', label: 'Checking', icon: 'wallet-outline' },
+                        { value: 'Savings', label: 'Savings', icon: 'cash-outline' },
+                    ]}
+                    value={accountForm.account_type}
+                    onChange={(v) => setAccountForm((p) => ({ ...p, account_type: v }))}
+                />
+            </FormField>
+
+            <FormField label="Bank Name">
+                <TextInput
+                    style={formInputStyle}
+                    value={accountForm.bank_name}
+                    onChangeText={(t) => setAccountForm((p) => ({ ...p, bank_name: t }))}
+                    placeholder="e.g. Al Rajhi Bank"
+                    placeholderTextColor={colors.textDim}
+                />
+            </FormField>
+
+            <FormField label="Last 4 Digits">
+                <TextInput
+                    style={formInputStyle}
+                    value={accountForm.last_4_digits}
+                    onChangeText={(t) => setAccountForm((p) => ({ ...p, last_4_digits: t.slice(0, 4) }))}
+                    placeholder="1234"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                />
+            </FormField>
+
+            <FormField label="Current Balance (SAR)">
+                <TextInput
+                    style={formInputStyle}
+                    value={accountForm.current_balance}
+                    onChangeText={(t) => setAccountForm((p) => ({ ...p, current_balance: t }))}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="decimal-pad"
+                />
+            </FormField>
+
+            <FormField label="Notes">
+                <TextInput
+                    style={[formInputStyle, { minHeight: 80, textAlignVertical: 'top' }]}
+                    value={accountForm.notes}
+                    onChangeText={(t) => setAccountForm((p) => ({ ...p, notes: t }))}
+                    placeholder="Optional notes"
+                    placeholderTextColor={colors.textDim}
+                    multiline
+                />
+            </FormField>
+        </FormModal>
+
+        {/* Credit Card Modal */}
+        <FormModal
+            visible={showCCModal}
+            onClose={() => setShowCCModal(false)}
+            title={editingCC ? 'Edit Credit Card' : 'New Credit Card'}
+            onSubmit={handleSaveCC}
+            submitLabel={editingCC ? 'Save' : 'Create'}
+            onDelete={editingCC ? handleDeleteCC : undefined}
+        >
+            <FormField label="Card Name" required>
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.name}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, name: t }))}
+                    placeholder="e.g. Visa Platinum"
+                    placeholderTextColor={colors.textDim}
+                />
+            </FormField>
+
+            <FormField label="Bank Name">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.bank_name}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, bank_name: t }))}
+                    placeholder="e.g. Al Rajhi Bank"
+                    placeholderTextColor={colors.textDim}
+                />
+            </FormField>
+
+            <FormField label="Last 4 Digits">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.last_4_digits}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, last_4_digits: t.slice(0, 4) }))}
+                    placeholder="1234"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                />
+            </FormField>
+
+            <FormField label="Credit Limit (SAR)" required>
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.credit_limit}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, credit_limit: t }))}
+                    placeholder="50000"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="decimal-pad"
+                />
+            </FormField>
+
+            <FormField label="Current Balance (SAR)">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.current_balance}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, current_balance: t }))}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="decimal-pad"
+                />
+            </FormField>
+
+            <FormField label="Statement Day" hint="Day of month (1-31)">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.statement_day}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, statement_day: t }))}
+                    placeholder="25"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="number-pad"
+                />
+            </FormField>
+
+            <FormField label="Due Day" hint="Day of month (1-31)">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.due_day}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, due_day: t }))}
+                    placeholder="15"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="number-pad"
+                />
+            </FormField>
+
+            <FormField label="APR (%)">
+                <TextInput
+                    style={formInputStyle}
+                    value={ccForm.apr}
+                    onChangeText={(t) => setCCForm((p) => ({ ...p, apr: t }))}
+                    placeholder="24.99"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="decimal-pad"
+                />
+            </FormField>
+        </FormModal>
+    </View>
     );
 };
 

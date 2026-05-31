@@ -5,14 +5,13 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Linking,
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../theme';
 import { getBaseUrl, setBaseURL } from '../services/api';
 
-const MoreScreen = () => {
+const MoreScreen = ({ navigation }) => {
     const menuSections = [
         {
             title: 'Financial Management',
@@ -22,24 +21,28 @@ const MoreScreen = () => {
                     label: 'Obligations',
                     subtitle: 'Monthly bills & subscriptions',
                     color: colors.primary,
+                    screen: 'Obligations',
                 },
                 {
                     icon: 'trending-down-outline',
                     label: 'Loans',
                     subtitle: 'Track loan balances & payments',
                     color: colors.warning,
+                    screen: 'Loans',
                 },
                 {
                     icon: 'card-outline',
                     label: 'Credit Cards',
                     subtitle: 'Card balances & limits',
                     color: colors.success,
+                    onPress: () => navigation.navigate('Accounts'),
                 },
                 {
                     icon: 'storefront-outline',
                     label: 'Merchants',
                     subtitle: 'Top merchants & spending',
                     color: '#8B5CF6',
+                    screen: 'Merchants',
                 },
             ],
         },
@@ -51,18 +54,21 @@ const MoreScreen = () => {
                     label: 'Reports',
                     subtitle: 'Spending trends & insights',
                     color: '#EC4899',
+                    comingSoon: true,
                 },
                 {
                     icon: 'layers-outline',
                     label: 'Allocation',
                     subtitle: 'Budget allocation rules',
                     color: '#06B6D4',
+                    comingSoon: true,
                 },
                 {
                     icon: 'pricetags-outline',
                     label: 'Categories',
                     subtitle: 'Manage transaction categories',
                     color: '#F97316',
+                    screen: 'Categories',
                 },
             ],
         },
@@ -98,12 +104,22 @@ const MoreScreen = () => {
                 {
                     icon: 'information-circle-outline',
                     label: 'About',
-                    subtitle: 'Finance Tracker Mobile v1.0.0',
+                    subtitle: 'Finance Tracker Mobile v1.1.0',
                     color: colors.textMuted,
                 },
             ],
         },
     ];
+
+    const handleItemPress = (item) => {
+        if (item.onPress) {
+            item.onPress();
+        } else if (item.screen) {
+            navigation.navigate(item.screen);
+        } else if (item.comingSoon) {
+            Alert.alert('Coming Soon', `${item.label} will be available in a future update.`);
+        }
+    };
 
     return (
         <ScrollView
@@ -133,7 +149,7 @@ const MoreScreen = () => {
                                     styles.menuItem,
                                     index < section.items.length - 1 && styles.menuItemBorder,
                                 ]}
-                                onPress={item.onPress}
+                                onPress={() => handleItemPress(item)}
                                 activeOpacity={0.6}
                             >
                                 <View
@@ -145,7 +161,14 @@ const MoreScreen = () => {
                                     <Ionicons name={item.icon} size={20} color={item.color} />
                                 </View>
                                 <View style={styles.menuText}>
-                                    <Text style={styles.menuLabel}>{item.label}</Text>
+                                    <View style={styles.menuLabelRow}>
+                                        <Text style={styles.menuLabel}>{item.label}</Text>
+                                        {item.comingSoon && (
+                                            <View style={styles.comingSoonBadge}>
+                                                <Text style={styles.comingSoonText}>Soon</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                     <Text style={styles.menuSubtitle} numberOfLines={1}>
                                         {item.subtitle}
                                     </Text>
@@ -253,10 +276,28 @@ const styles = StyleSheet.create({
         flex: 1,
         marginRight: spacing.sm,
     },
+    menuLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
     menuLabel: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
         color: colors.text,
+    },
+    comingSoonBadge: {
+        backgroundColor: colors.surfaceLight,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 2,
+        borderRadius: borderRadius.full,
+    },
+    comingSoonText: {
+        fontSize: 9,
+        fontWeight: fontWeight.bold,
+        color: colors.textDim,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     menuSubtitle: {
         fontSize: fontSize.sm,

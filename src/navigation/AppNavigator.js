@@ -1,15 +1,132 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 
+// Screens
 import DashboardScreen from '../screens/DashboardScreen';
 import TransactionsScreen from '../screens/TransactionsScreen';
+import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 import AccountsScreen from '../screens/AccountsScreen';
+import CreditCardDetailScreen from '../screens/CreditCardDetailScreen';
 import MoreScreen from '../screens/MoreScreen';
+import ObligationsScreen from '../screens/ObligationsScreen';
+import LoansScreen from '../screens/LoansScreen';
+import MerchantsScreen from '../screens/MerchantsScreen';
+import CategoriesScreen from '../screens/CategoriesScreen';
 
 const Tab = createBottomTabNavigator();
+const DashboardStack = createNativeStackNavigator();
+const TransactionsStack = createNativeStackNavigator();
+const AccountsStack = createNativeStackNavigator();
+const MoreStack = createNativeStackNavigator();
+
+const screenOptions = {
+    headerStyle: {
+        backgroundColor: colors.background,
+    },
+    headerTintColor: colors.text,
+    headerTitleStyle: {
+        fontWeight: '700',
+        fontSize: 18,
+    },
+    headerShadowVisible: false,
+    headerBackTitleVisible: false,
+    contentStyle: {
+        backgroundColor: colors.background,
+    },
+};
+
+// --- Dashboard Stack ---
+const DashboardStackScreen = () => (
+    <DashboardStack.Navigator screenOptions={screenOptions}>
+        <DashboardStack.Screen
+            name="DashboardHome"
+            component={DashboardScreen}
+            options={{ title: 'Overview' }}
+        />
+        <DashboardStack.Screen
+            name="TransactionDetail"
+            component={TransactionDetailScreen}
+            options={{ title: 'Transaction' }}
+        />
+    </DashboardStack.Navigator>
+);
+
+// --- Transactions Stack ---
+const TransactionsStackScreen = () => (
+    <TransactionsStack.Navigator screenOptions={screenOptions}>
+        <TransactionsStack.Screen
+            name="TransactionsList"
+            component={TransactionsScreen}
+            options={{ title: 'Transactions' }}
+        />
+        <TransactionsStack.Screen
+            name="TransactionDetail"
+            component={TransactionDetailScreen}
+            options={{ title: 'Transaction' }}
+        />
+    </TransactionsStack.Navigator>
+);
+
+// --- Accounts Stack ---
+const AccountsStackScreen = () => (
+    <AccountsStack.Navigator screenOptions={screenOptions}>
+        <AccountsStack.Screen
+            name="AccountsList"
+            component={AccountsScreen}
+            options={{ title: 'Accounts' }}
+        />
+        <AccountsStack.Screen
+            name="CreditCardDetail"
+            component={CreditCardDetailScreen}
+            options={{ title: 'Credit Card' }}
+        />
+        <AccountsStack.Screen
+            name="TransactionDetail"
+            component={TransactionDetailScreen}
+            options={{ title: 'Transaction' }}
+        />
+    </AccountsStack.Navigator>
+);
+
+// --- More Stack ---
+const MoreStackScreen = () => (
+    <MoreStack.Navigator screenOptions={screenOptions}>
+        <MoreStack.Screen
+            name="MoreHome"
+            component={MoreScreen}
+            options={{ title: 'More' }}
+        />
+        <MoreStack.Screen
+            name="Obligations"
+            component={ObligationsScreen}
+            options={{ title: 'Obligations' }}
+        />
+        <MoreStack.Screen
+            name="Loans"
+            component={LoansScreen}
+            options={{ title: 'Loans' }}
+        />
+        <MoreStack.Screen
+            name="Merchants"
+            component={MerchantsScreen}
+            options={{ title: 'Merchants' }}
+        />
+        <MoreStack.Screen
+            name="Categories"
+            component={CategoriesScreen}
+            options={{ title: 'Categories' }}
+        />
+        <MoreStack.Screen
+            name="TransactionDetail"
+            component={TransactionDetailScreen}
+            options={{ title: 'Transaction' }}
+        />
+    </MoreStack.Navigator>
+);
 
 const getTabIcon = (routeName, focused) => {
     const iconMap = {
@@ -62,36 +179,25 @@ const AppNavigator = () => {
                         fontSize: 11,
                         fontWeight: '600',
                     },
-                    headerStyle: {
-                        backgroundColor: colors.background,
-                        shadowColor: 'transparent',
-                        elevation: 0,
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.border,
-                    },
-                    headerTintColor: colors.text,
-                    headerTitleStyle: {
-                        fontWeight: '700',
-                        fontSize: 18,
-                    },
+                    headerShown: false, // Stack navigators handle headers
                 })}
             >
                 <Tab.Screen
                     name="Dashboard"
-                    component={DashboardScreen}
+                    component={DashboardStackScreen}
                     options={{ title: 'Overview' }}
                 />
                 <Tab.Screen
                     name="Transactions"
-                    component={TransactionsScreen}
+                    component={TransactionsStackScreen}
                 />
                 <Tab.Screen
                     name="Accounts"
-                    component={AccountsScreen}
+                    component={AccountsStackScreen}
                 />
                 <Tab.Screen
                     name="More"
-                    component={MoreScreen}
+                    component={MoreStackScreen}
                 />
             </Tab.Navigator>
         </NavigationContainer>

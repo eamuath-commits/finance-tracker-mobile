@@ -11,10 +11,19 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, fontSize, fontWeight, formatNumber } from '../theme';
-import { getTransactions, getAccounts, getCreditCards } from '../services/api';
+import { getTransactions, getAccounts, getCreditCards, createTransaction } from '../services/api';
 import TransactionRow from '../components/TransactionRow';
+import FloatingActionButton from '../components/FloatingActionButton';
+import FormModal, { FormField, formInputStyle } from '../components/FormModal';
 
-const TransactionsScreen = () => {
+const dateFilters = [
+    { key: 'all', label: 'All Time' },
+    { key: 'month', label: 'This Month' },
+    { key: 'last', label: 'Last Month' },
+    { key: 'week', label: 'This Week' },
+];
+
+const TransactionsScreen = ({ navigation }) => {
     const [transactions, setTransactions] = useState([]);
     const [accounts, setAccounts] = useState([]);
     const [creditCards, setCreditCards] = useState([]);
@@ -24,7 +33,19 @@ const TransactionsScreen = () => {
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'debit', 'credit'
+    const [dateFilter, setDateFilter] = useState('all');
     const [showFilters, setShowFilters] = useState(false);
+
+    // Create form
+    const [showCreate, setShowCreate] = useState(false);
+    const [createForm, setCreateForm] = useState({
+        merchant: '',
+        amount: '',
+        type: 'debit',
+        category: '',
+        notes: '',
+        account_id: '',
+    });
 
     const fetchData = useCallback(async () => {
         try {
@@ -53,6 +74,27 @@ const TransactionsScreen = () => {
         fetchData();
     }, [fetchData]);
 
+    // Date filter boundaries
+    const dateBounds = useMemo(() => {
+        const now = new Date();
+        switch (dateFilter) {
+            case 'month':
+                return new Date(now.getFullYear(), now.getMonth(), 1);
+            case 'last': {
+                const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                return { start: d, end: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59) };
+            }
+            case 'week': {
+                const d = new Date(now);
+                d.setDate(d.getDate() - d.getDay());
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            default:
+                return null;
+        }
+    }, [dateFilter]);
+
     // Filtered transactions
     const filteredTransactions = useMemo(() => {
         let filtered = transactions;
@@ -75,11 +117,24 @@ const TransactionsScreen = () => {
             filtered = filtered.filter((tx) => tx.type === typeFilter);
         }
 
+        // Date filter
+        if (dateFilter !== 'all' && dateBounds) {
+            if (dateBounds.start && dateBounds.end) {
+                // last month
+                filtered = filtered.filter((tx) => {
+                    const d = new Date(tx.timestamp);
+                    return d >= dateBounds.start && d <= dateBounds.end;
+                });
+            } else {
+                filtered = filtered.filter((tx) => new Date(tx.timestamp) >= dateBounds);
+            }
+        }
+
         // Sort by date descending
         return filtered.sort(
             (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
         );
-    }, [transactions, searchTerm, typeFilter]);
+    }, [transactions, searchTerm, typeFilter, dateFilter, dateBounds]);
 
     // Totals
     const totals = useMemo(() => {
@@ -95,9 +150,35 @@ const TransactionsScreen = () => {
     const clearFilters = () => {
         setSearchTerm('');
         setTypeFilter('all');
+        setDateFilter('all');
     };
 
-    const hasFilters = searchTerm || typeFilter !== 'all';
+    const hasFilters = searchTerm || typeFilter !== 'all' || dateFilter !== 'all';
+
+    const handleTransactionPress = (tx) => {
+        navigation.navigate('TransactionDetail', { transaction: tx });
+    };
+
+    const handleCreate = async () => {
+        if (!createForm.merchant || !createForm.amount) return;
+        try {
+            await createTransaction({
+                merchant: createForm.merchant,
+                amount: parseFloat(createForm.amount),
+                type: createForm.type,
+                category: createForm.category || undefined,
+                notes: createForm.notes || undefined,
+                account_id: createForm.account_id || undefined,
+                status: 'completed',
+                timestamp: new Date().toISOString(),
+            });
+            setShowCreate(false);
+            setCreateForm({ merchant: '', amount: '', type: 'debit', category: '', notes: '', account_id: '' });
+            fetchData();
+        } catch (err) {
+            console.error('Create transaction error:', err);
+        }
+    };
 
     if (loading) {
         return (
@@ -142,32 +223,58 @@ const TransactionsScreen = () => {
 
             {/* — Filter Chips — */}
             {showFilters && (
-                <View style={styles.filterRow}>
-                    {['all', 'debit', 'credit'].map((type) => (
-                        <TouchableOpacity
-                            key={type}
-                            style={[
-                                styles.filterChip,
-                                typeFilter === type && styles.filterChipActive,
-                            ]}
-                            onPress={() => setTypeFilter(type)}
-                        >
-                            <Text
+                <View style={styles.filterArea}>
+                    {/* Type filters */}
+                    <View style={styles.filterRow}>
+                        {['all', 'debit', 'credit'].map((type) => (
+                            <TouchableOpacity
+                                key={type}
                                 style={[
-                                    styles.filterChipText,
-                                    typeFilter === type && styles.filterChipTextActive,
+                                    styles.filterChip,
+                                    typeFilter === type && styles.filterChipActive,
                                 ]}
+                                onPress={() => setTypeFilter(type)}
                             >
-                                {type === 'all' ? 'All' : type === 'debit' ? 'Expenses' : 'Income'}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                    {hasFilters && (
-                        <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-                            <Ionicons name="close" size={14} color={colors.textMuted} />
-                            <Text style={styles.clearText}>Clear</Text>
-                        </TouchableOpacity>
-                    )}
+                                <Text
+                                    style={[
+                                        styles.filterChipText,
+                                        typeFilter === type && styles.filterChipTextActive,
+                                    ]}
+                                >
+                                    {type === 'all' ? 'All' : type === 'debit' ? 'Expenses' : 'Income'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* Date filters */}
+                    <View style={styles.filterRow}>
+                        {dateFilters.map((d) => (
+                            <TouchableOpacity
+                                key={d.key}
+                                style={[
+                                    styles.filterChip,
+                                    dateFilter === d.key && styles.filterChipActive,
+                                ]}
+                                onPress={() => setDateFilter(d.key)}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterChipText,
+                                        dateFilter === d.key && styles.filterChipTextActive,
+                                    ]}
+                                >
+                                    {d.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                        {hasFilters && (
+                            <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
+                                <Ionicons name="close" size={14} color={colors.textMuted} />
+                                <Text style={styles.clearText}>Clear</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             )}
 
@@ -205,7 +312,9 @@ const TransactionsScreen = () => {
             <FlatList
                 data={filteredTransactions}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <TransactionRow transaction={item} />}
+                renderItem={({ item }) => (
+                    <TransactionRow transaction={item} onPress={handleTransactionPress} />
+                )}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -225,6 +334,97 @@ const TransactionsScreen = () => {
                     </View>
                 }
             />
+
+            {/* FAB */}
+            <FloatingActionButton onPress={() => setShowCreate(true)} />
+
+            {/* Create Transaction Modal */}
+            <FormModal
+                visible={showCreate}
+                onClose={() => setShowCreate(false)}
+                title="New Transaction"
+                onSubmit={handleCreate}
+                submitLabel="Create"
+            >
+                <FormField label="Merchant" required>
+                    <TextInput
+                        style={formInputStyle}
+                        value={createForm.merchant}
+                        onChangeText={(t) => setCreateForm((p) => ({ ...p, merchant: t }))}
+                        placeholder="Enter merchant name"
+                        placeholderTextColor={colors.textDim}
+                    />
+                </FormField>
+
+                <FormField label="Amount (SAR)" required>
+                    <TextInput
+                        style={formInputStyle}
+                        value={createForm.amount}
+                        onChangeText={(t) => setCreateForm((p) => ({ ...p, amount: t }))}
+                        keyboardType="decimal-pad"
+                        placeholder="0.00"
+                        placeholderTextColor={colors.textDim}
+                    />
+                </FormField>
+
+                <FormField label="Type">
+                    <View style={styles.typeToggle}>
+                        {['debit', 'credit'].map((t) => (
+                            <TouchableOpacity
+                                key={t}
+                                style={[styles.typeBtn, createForm.type === t && styles.typeBtnActive]}
+                                onPress={() => setCreateForm((p) => ({ ...p, type: t }))}
+                            >
+                                <Ionicons
+                                    name={t === 'debit' ? 'arrow-up' : 'arrow-down'}
+                                    size={16}
+                                    color={createForm.type === t ? '#FFFFFF' : colors.textMuted}
+                                />
+                                <Text style={[styles.typeLabel, createForm.type === t && styles.typeLabelActive]}>
+                                    {t === 'debit' ? 'Expense' : 'Income'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </FormField>
+
+                <FormField label="Account">
+                    <View style={styles.accountPicker}>
+                        {accounts.map((acc) => (
+                            <TouchableOpacity
+                                key={acc.id}
+                                style={[styles.accountChip, createForm.account_id === acc.id && styles.accountChipActive]}
+                                onPress={() => setCreateForm((p) => ({ ...p, account_id: acc.id }))}
+                            >
+                                <Text style={[styles.accountChipText, createForm.account_id === acc.id && styles.accountChipTextActive]}>
+                                    {acc.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </FormField>
+
+                <FormField label="Category">
+                    <TextInput
+                        style={formInputStyle}
+                        value={createForm.category}
+                        onChangeText={(t) => setCreateForm((p) => ({ ...p, category: t }))}
+                        placeholder="Category (optional)"
+                        placeholderTextColor={colors.textDim}
+                    />
+                </FormField>
+
+                <FormField label="Notes">
+                    <TextInput
+                        style={[formInputStyle, { minHeight: 80, textAlignVertical: 'top' }]}
+                        value={createForm.notes}
+                        onChangeText={(t) => setCreateForm((p) => ({ ...p, notes: t }))}
+                        placeholder="Notes (optional)"
+                        placeholderTextColor={colors.textDim}
+                        multiline
+                    />
+                </FormField>
+            </FormModal>
         </View>
     );
 };
@@ -285,10 +485,13 @@ const styles = StyleSheet.create({
     },
 
     // Filters
-    filterRow: {
-        flexDirection: 'row',
+    filterArea: {
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.md,
+        gap: spacing.sm,
+    },
+    filterRow: {
+        flexDirection: 'row',
         gap: spacing.sm,
         flexWrap: 'wrap',
         alignItems: 'center',
@@ -372,7 +575,7 @@ const styles = StyleSheet.create({
 
     // List
     listContent: {
-        paddingBottom: spacing.xxxl,
+        paddingBottom: spacing.xxxl * 3,
     },
     emptyContainer: {
         flex: 1,
@@ -390,6 +593,26 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         textAlign: 'center',
     },
+
+    // Create form
+    typeToggle: { flexDirection: 'row', gap: spacing.md },
+    typeBtn: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+        backgroundColor: colors.surface, paddingVertical: spacing.md, borderRadius: borderRadius.sm,
+        borderWidth: 1, borderColor: colors.border,
+    },
+    typeBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    typeLabel: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: colors.textMuted },
+    typeLabelActive: { color: '#FFFFFF' },
+    accountPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    accountChip: {
+        paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+        borderRadius: borderRadius.full, backgroundColor: colors.surface,
+        borderWidth: 1, borderColor: colors.border,
+    },
+    accountChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    accountChipText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: fontWeight.medium },
+    accountChipTextActive: { color: '#FFFFFF' },
 });
 
 export default TransactionsScreen;
