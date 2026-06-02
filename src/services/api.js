@@ -93,6 +93,7 @@ export const getAllocationAnalysis = () => api.get('/analysis/allocation');
 // --- Messages / SMS ---
 export const getMessages = () => api.get('/messages/');
 export const retryMessage = (id) => api.post(`/messages/${id}/retry`);
+export const ingestSMS = (sender, body) => api.post('/sms/ingest', { sender, body });
 
 // --- Savings Goals ---
 export const getGoals = () => api.get('/goals/');

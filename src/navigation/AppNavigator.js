@@ -16,6 +16,7 @@ import ObligationsScreen from '../screens/ObligationsScreen';
 import LoansScreen from '../screens/LoansScreen';
 import MerchantsScreen from '../screens/MerchantsScreen';
 import CategoriesScreen from '../screens/CategoriesScreen';
+import SMSCaptureScreen from '../screens/SMSCaptureScreen';
 
 const Tab = createBottomTabNavigator();
 const DashboardStack = createNativeStackNavigator();
@@ -119,6 +120,11 @@ const MoreStackScreen = () => (
             name="Categories"
             component={CategoriesScreen}
             options={{ title: 'Categories' }}
+        />
+        <MoreStack.Screen
+            name="SMSCapture"
+            component={SMSCaptureScreen}
+            options={{ title: 'SMS Capture' }}
         />
         <MoreStack.Screen
             name="TransactionDetail"

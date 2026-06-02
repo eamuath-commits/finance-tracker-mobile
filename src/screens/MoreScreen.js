@@ -44,6 +44,13 @@ const MoreScreen = ({ navigation }) => {
                     color: '#8B5CF6',
                     screen: 'Merchants',
                 },
+                {
+                    icon: 'chatbubble-ellipses-outline',
+                    label: 'SMS Capture',
+                    subtitle: 'Auto-capture bank SMS',
+                    color: '#14B8A6',
+                    screen: 'SMSCapture',
+                },
             ],
         },
         {
